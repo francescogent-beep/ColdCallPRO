@@ -21,6 +21,7 @@ const MasterLog: React.FC<MasterLogProps> = ({ entries, onAddRequest, onEditRequ
   const [showDataMenu, setShowDataMenu] = useState(false);
   const [hideFinished, setHideFinished] = useState(true);
   const [filterNeedsHelp, setFilterNeedsHelp] = useState(false);
+  const [showOnlyNewOrNoAnswer, setShowOnlyNewOrNoAnswer] = useState(true);
   
   const menuRef = useRef<HTMLDivElement>(null);
   const jsonFileInputRef = useRef<HTMLInputElement>(null);
@@ -38,16 +39,28 @@ const MasterLog: React.FC<MasterLogProps> = ({ entries, onAddRequest, onEditRequ
 
   const filteredEntries = useMemo(() => {
     let result = [...entries];
+    
+    // Base Search
     if (searchTerm) {
       result = result.filter(e => 
         e.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         e.phone.includes(searchTerm)
       );
     }
+
+    // Default Filter: Show only New or No Answer unless toggled off
+    if (showOnlyNewOrNoAnswer) {
+      result = result.filter(e => 
+        e.attemptNumber === 0 || e.outcome === CallOutcome.NO_ANSWER
+      );
+    }
+
+    // Secondary Filters
     if (professionFilter !== 'All') result = result.filter(e => e.profession === professionFilter);
     if (outcomeFilter !== 'All') result = result.filter(e => e.outcome === outcomeFilter);
     if (citySearch) result = result.filter(e => (e.city || '').toLowerCase().includes(citySearch.toLowerCase()));
     if (hideFinished) result = result.filter(e => e.leadStage !== LeadStage.CLOSED && e.leadStage !== LeadStage.BOOKED);
+    
     if (filterNeedsHelp) {
       result = result.filter(e => 
         e.websiteStatus === WebsiteStatus.BROKEN || 
@@ -64,9 +77,9 @@ const MasterLog: React.FC<MasterLogProps> = ({ entries, onAddRequest, onEditRequ
       if (!aToday && bToday) return 1;
       return (b.lastCallDate || '').localeCompare(a.lastCallDate || '');
     });
-  }, [entries, searchTerm, professionFilter, outcomeFilter, citySearch, hideFinished, filterNeedsHelp, todayStr]);
+  }, [entries, searchTerm, professionFilter, outcomeFilter, citySearch, hideFinished, filterNeedsHelp, showOnlyNewOrNoAnswer, todayStr]);
 
-  const hasActiveFilters = professionFilter !== 'All' || outcomeFilter !== 'All' || citySearch !== '' || filterNeedsHelp;
+  const hasActiveFilters = professionFilter !== 'All' || outcomeFilter !== 'All' || citySearch !== '' || filterNeedsHelp || !showOnlyNewOrNoAnswer;
 
   // --- DATA SYNC ACTIONS ---
   const handleCopySyncCode = () => {
@@ -157,7 +170,15 @@ const MasterLog: React.FC<MasterLogProps> = ({ entries, onAddRequest, onEditRequ
             {showDataMenu && (
               <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[100] p-4 space-y-4 max-h-[80vh] overflow-y-auto">
                 <div className="space-y-3">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Advanced Filters</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Visibility Filters</span>
+                  
+                  <label className="flex items-center gap-2 text-xs font-bold text-indigo-600 bg-indigo-50 p-2 rounded-lg border border-indigo-100 cursor-pointer">
+                    <input type="checkbox" checked={!showOnlyNewOrNoAnswer} onChange={() => setShowOnlyNewOrNoAnswer(!showOnlyNewOrNoAnswer)} className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500" />
+                    <span>Show All Leads (inc. Follow-ups)</span>
+                  </label>
+
+                  <div className="h-px bg-slate-100 my-1"></div>
+
                   <select value={professionFilter} onChange={(e) => setProfessionFilter(e.target.value)} className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg">
                     <option value="All">All Professions</option>
                     {PROFESSION_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
