@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { CallLogEntry, WhoAnswered, WhatsAppSent, CallOutcome } from '../types';
+import { OUTCOME_OPTIONS } from '../constants';
 
 interface DailyMetricsProps {
   entries: CallLogEntry[];
@@ -59,12 +60,18 @@ const DailyMetrics: React.FC<DailyMetricsProps> = ({ entries }) => {
     const booked = filteredEntries.filter(e => e.outcome === CallOutcome.BOOKED).length;
     const wapp = filteredEntries.filter(e => e.whatsAppSent === WhatsAppSent.YES).length;
 
+    const outcomeCounts = filteredEntries.reduce((acc, e) => {
+      acc[e.outcome] = (acc[e.outcome] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
     return {
       total,
       answered,
       dms,
       booked,
       wapp,
+      outcomeCounts,
       connectionRate: total > 0 ? Math.round((answered / total) * 100) : 0,
       dmReachRate: answered > 0 ? Math.round((dms / answered) * 100) : 0,
       bookingRate: total > 0 ? Math.round((booked / total) * 100) : 0,
@@ -74,9 +81,9 @@ const DailyMetrics: React.FC<DailyMetricsProps> = ({ entries }) => {
 
   const stats = [
     { label: 'Volume', value: calc.total, sub: 'Total Calls', color: 'bg-slate-900' },
-    { label: 'Connect %', value: `${calc.connectionRate}%`, sub: 'Picked Up', color: 'bg-indigo-600' },
-    { label: 'DM %', value: `${calc.dmReachRate}%`, sub: 'Reached Owner', color: 'bg-indigo-500' },
-    { label: 'Booking %', value: `${calc.bookingRate}%`, sub: 'Success Rate', color: 'bg-rose-600' },
+    { label: 'Connect %', value: `${calc.connectionRate}% (${calc.answered})`, sub: 'Picked Up', color: 'bg-indigo-600' },
+    { label: 'DM %', value: `${calc.dmReachRate}% (${calc.dms})`, sub: 'Reached Owner', color: 'bg-indigo-500' },
+    { label: 'Booking %', value: `${calc.bookingRate}% (${calc.booked})`, sub: 'Success Rate', color: 'bg-rose-600' },
     { label: 'WhatsApp', value: calc.wapp, sub: 'Sent Messages', color: 'bg-emerald-600' },
   ];
 
@@ -149,6 +156,38 @@ const DailyMetrics: React.FC<DailyMetricsProps> = ({ entries }) => {
               <div className="h-full bg-emerald-500" style={{ width: `${calc.wappEfficiency}%` }}></div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Outcome Report Section */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6">Outcome Distribution Report</h3>
+        <div className="space-y-4">
+          {OUTCOME_OPTIONS.map((outcome) => {
+            const count = calc.outcomeCounts[outcome] || 0;
+            const percentage = calc.total > 0 ? Math.round((count / calc.total) * 100) : 0;
+            
+            return (
+              <div key={outcome} className="flex items-center gap-4">
+                <div className="flex-1">
+                  <div className="flex justify-between items-end mb-1">
+                    <span className="text-[11px] font-bold text-slate-700 uppercase">{outcome}</span>
+                    <span className="text-[11px] font-black text-slate-900">{percentage}% ({count})</span>
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        outcome === CallOutcome.BOOKED ? 'bg-rose-500' :
+                        outcome === CallOutcome.INTERESTED ? 'bg-indigo-500' :
+                        outcome === CallOutcome.NO_ANSWER ? 'bg-slate-300' : 'bg-slate-900'
+                      }`}
+                      style={{ width: `${percentage}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
