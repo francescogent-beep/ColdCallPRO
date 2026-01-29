@@ -65,6 +65,28 @@ const DailyMetrics: React.FC<DailyMetricsProps> = ({ entries }) => {
       return acc;
     }, {} as Record<string, number>);
 
+    // Hourly connection analysis
+    const hourlyStats = Array.from({ length: 24 }, (_, i) => ({
+      hour: i,
+      total: 0,
+      connected: 0
+    }));
+
+    filteredEntries.forEach(e => {
+      if (e.lastCallDate) {
+        const hour = new Date(e.lastCallDate).getHours();
+        hourlyStats[hour].total++;
+        if (e.whoAnswered !== WhoAnswered.NO_ANSWER) {
+          hourlyStats[hour].connected++;
+        }
+      }
+    });
+
+    const activeHours = hourlyStats.filter(h => h.total > 0).sort((a, b) => a.hour - b.hour);
+    const peakHour = activeHours.length > 0 
+      ? [...activeHours].sort((a, b) => (b.connected/b.total) - (a.connected/a.total))[0]
+      : null;
+
     return {
       total,
       answered,
@@ -72,6 +94,8 @@ const DailyMetrics: React.FC<DailyMetricsProps> = ({ entries }) => {
       booked,
       wapp,
       outcomeCounts,
+      hourlyStats: activeHours,
+      peakHour,
       connectionRate: total > 0 ? Math.round((answered / total) * 100) : 0,
       dmReachRate: answered > 0 ? Math.round((dms / answered) * 100) : 0,
       bookingRate: total > 0 ? Math.round((booked / total) * 100) : 0,
@@ -159,35 +183,90 @@ const DailyMetrics: React.FC<DailyMetricsProps> = ({ entries }) => {
         </div>
       </div>
 
-      {/* Outcome Report Section */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6">Outcome Distribution Report</h3>
-        <div className="space-y-4">
-          {OUTCOME_OPTIONS.map((outcome) => {
-            const count = calc.outcomeCounts[outcome] || 0;
-            const percentage = calc.total > 0 ? Math.round((count / calc.total) * 100) : 0;
-            
-            return (
-              <div key={outcome} className="flex items-center gap-4">
-                <div className="flex-1">
-                  <div className="flex justify-between items-end mb-1">
-                    <span className="text-[11px] font-bold text-slate-700 uppercase">{outcome}</span>
-                    <span className="text-[11px] font-black text-slate-900">{percentage}% ({count})</span>
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        outcome === CallOutcome.BOOKED ? 'bg-rose-500' :
-                        outcome === CallOutcome.INTERESTED ? 'bg-indigo-500' :
-                        outcome === CallOutcome.NO_ANSWER ? 'bg-slate-300' : 'bg-slate-900'
-                      }`}
-                      style={{ width: `${percentage}%` }}
-                    ></div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Outcome Report Section */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6">Outcome Distribution Report</h3>
+          <div className="space-y-4">
+            {OUTCOME_OPTIONS.map((outcome) => {
+              const count = calc.outcomeCounts[outcome] || 0;
+              const percentage = calc.total > 0 ? Math.round((count / calc.total) * 100) : 0;
+              
+              return (
+                <div key={outcome} className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <div className="flex justify-between items-end mb-1">
+                      <span className="text-[11px] font-bold text-slate-700 uppercase">{outcome}</span>
+                      <span className="text-[11px] font-black text-slate-900">{percentage}% ({count})</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          outcome === CallOutcome.BOOKED ? 'bg-rose-500' :
+                          outcome === CallOutcome.INTERESTED ? 'bg-indigo-500' :
+                          outcome === CallOutcome.NO_ANSWER ? 'bg-slate-300' : 'bg-slate-900'
+                        }`}
+                        style={{ width: `${percentage}%` }}
+                      ></div>
+                    </div>
                   </div>
                 </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Call Window Analysis Section */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Optimal Call Windows</h3>
+            {calc.peakHour && (
+              <div className="bg-indigo-600 text-white text-[9px] font-black uppercase px-2 py-1 rounded">
+                Peak Hour: {calc.peakHour.hour}:00
               </div>
-            );
-          })}
+            )}
+          </div>
+          
+          <div className="space-y-4">
+            {calc.hourlyStats.length > 0 ? (
+              calc.hourlyStats.map((stat) => {
+                const rate = Math.round((stat.connected / stat.total) * 100);
+                const isPeak = calc.peakHour?.hour === stat.hour;
+                
+                return (
+                  <div key={stat.hour} className="flex items-center gap-4">
+                    <div className="w-12 text-right">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{stat.hour}:00</span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-end mb-1">
+                        <span className={`text-[10px] font-bold uppercase ${isPeak ? 'text-indigo-600' : 'text-slate-500'}`}>
+                          {rate}% Connect Rate
+                        </span>
+                        <span className="text-[10px] font-black text-slate-400">{stat.total} calls</span>
+                      </div>
+                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ${isPeak ? 'bg-indigo-600' : 'bg-slate-400'}`}
+                          style={{ width: `${rate}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="py-12 text-center border-2 border-dashed border-slate-100 rounded-xl">
+                <p className="text-[10px] font-black text-slate-300 uppercase">No history for this period</p>
+              </div>
+            )}
+          </div>
+          
+          <div className="mt-8 pt-4 border-t border-slate-50">
+            <p className="text-[9px] font-bold text-slate-400 uppercase leading-relaxed tracking-wider">
+              * Connect rate is calculated based on history within the selected timeframe. Higher percentages indicate more effective calling blocks.
+            </p>
+          </div>
         </div>
       </div>
     </div>
