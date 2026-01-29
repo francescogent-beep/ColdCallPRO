@@ -65,8 +65,22 @@ const App: React.FC = () => {
     if (overwrite) {
       updated = newEntries;
     } else {
+      // De-duplication logic: Prevent adding prospects that already exist by checking ID and Phone Number
       const existingIds = new Set(entries.map(e => e.id));
-      const uniqueNew = newEntries.filter(e => !existingIds.has(e.id));
+      const existingPhones = new Set(entries.map(e => e.phone.replace(/\D/g, '')).filter(p => p !== ''));
+      const seenInBatch = new Set<string>();
+
+      const uniqueNew = newEntries.filter(e => {
+        const cleanPhone = e.phone.replace(/\D/g, '');
+        const isDuplicate = existingIds.has(e.id) || (cleanPhone !== '' && (existingPhones.has(cleanPhone) || seenInBatch.has(cleanPhone)));
+        
+        if (!isDuplicate && cleanPhone !== '') {
+          seenInBatch.add(cleanPhone);
+        }
+        
+        return !isDuplicate;
+      });
+      
       updated = [...uniqueNew, ...entries];
     }
     setEntries(updated);
