@@ -1,34 +1,16 @@
-
-import React, { useState, useEffect } from 'react';
-import Layout from './components/Layout';
-import MasterLog from './components/MasterLog';
-import FollowUpView from './components/FollowUpView';
-import DailyMetrics from './components/DailyMetrics';
-import LogForm from './components/LogForm';
-import { CallLogEntry, TabType, CallOutcome, SessionMetric } from './types';
-import { getLeads, saveLead, deleteLead, getSessions, saveSession, testConnection } from './services/storage';
-import { checkReminders } from './services/notifications';
-import { auth, signIn, logOut } from './src/firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
-
-const App: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>('master');
-  const [entries, setEntries] = useState<CallLogEntry[]>([]);
-  const [sessions, setSessions] = useState<SessionMetric[]>([]);
-  const [activeCallId, setActiveCallId] = useState<string | null>(null);
-  const [isAdding, setIsAdding] = useState(false);
-  
-  // Session tracking state
-  const [currentSessionId] = useState<string>(Math.random().toString(36).substr(2, 9));
-  const [sessionStartTime] = useState<number>(Date.now());
-  const [sessionCalls, setSessionCalls] = useState<number>(0);
   const [sessionRejections, setSessionRejections] = useState<number>(0);
 
   // Auth listener
   useEffect(() => {
+    const checkRedirect = async () => {
+      try {
+        await handleRedirectResult();
+      } catch (error: any) {
+        setAuthError(error.message || 'Error during redirect sign-in.');
+      }
+    };
+    checkRedirect();
+
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setIsAuthReady(true);
@@ -42,10 +24,18 @@ const App: React.FC = () => {
     if (!isAuthReady) return;
 
     const loadData = async () => {
-      const leads = await getLeads();
-      const historicalSessions = await getSessions();
-      setEntries(leads);
-      setSessions(historicalSessions);
+      try {
+        const leads = await getLeads();
+        const historicalSessions = await getSessions();
+        setEntries(leads);
+        setSessions(historicalSessions);
+      } catch (error: any) {
+        console.error("Error loading data:", error);
+        // If it's a permission error, it might be due to rules or stale auth
+        if (error.message?.includes('permission-denied')) {
+          setAuthError("Permission denied. Your account might not have access to this data.");
+        }
+      }
     };
     loadData();
   }, [isAuthReady, user]);
@@ -252,33 +242,35 @@ const App: React.FC = () => {
   }
 
   return (
-    <Layout 
-      activeTab={activeTab} 
-      setActiveTab={setActiveTab}
-      sessionCalls={sessionCalls}
-      sessionRejections={sessionRejections}
-      sessionStartTime={sessionStartTime}
-      user={user}
-      onLogout={logOut}
-    >
-      {renderContent()}
+    <ErrorBoundary>
+      <Layout 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab}
+        sessionCalls={sessionCalls}
+        sessionRejections={sessionRejections}
+        sessionStartTime={sessionStartTime}
+        user={user}
+        onLogout={logOut}
+      >
+        {renderContent()}
 
-      {(isAdding || activeCallId) && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-[2px] overflow-y-auto p-4 flex items-center justify-center">
-          <LogForm
-            initialData={activeCallId ? entries.find(e => e.id === activeCallId) : undefined}
-            onSubmit={(entry) => {
-              if (activeCallId) handleUpdate(entry);
-              else handleAdd(entry);
-            }}
-            onCancel={() => {
-              setIsAdding(false);
-              setActiveCallId(null);
-            }}
-          />
-        </div>
-      )}
-    </Layout>
+        {(isAdding || activeCallId) && (
+          <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-[2px] overflow-y-auto p-4 flex items-center justify-center">
+            <LogForm
+              initialData={activeCallId ? entries.find(e => e.id === activeCallId) : undefined}
+              onSubmit={(entry) => {
+                if (activeCallId) handleUpdate(entry);
+                else handleAdd(entry);
+              }}
+              onCancel={() => {
+                setIsAdding(false);
+                setActiveCallId(null);
+              }}
+            />
+          </div>
+        )}
+      </Layout>
+    </ErrorBoundary>
   );
 };
 
