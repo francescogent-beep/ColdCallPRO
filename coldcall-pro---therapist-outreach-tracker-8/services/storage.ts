@@ -39,27 +39,37 @@ export const getLocalSessions = (): SessionMetric[] => {
 
 // Firestore Operations
 export const getLeads = async (): Promise<CallLogEntry[]> => {
-  const user = auth.currentUser;
-  if (!user) return getLocalLogs();
-  
-  const q = query(collection(db, 'leads'), where('uid', '==', user.uid));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => doc.data() as CallLogEntry);
+  try {
+    const user = auth.currentUser;
+    if (!user) return getLocalLogs();
+    
+    const q = query(collection(db, 'leads'), where('uid', '==', user.uid));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => doc.data() as CallLogEntry);
+  } catch (error) {
+    console.error("Error fetching leads:", error);
+    return getLocalLogs(); // Fallback to local logs on error
+  }
 };
 
 export const saveLead = async (lead: CallLogEntry): Promise<void> => {
-  const user = auth.currentUser;
-  if (!user) {
-    const logs = getLocalLogs();
-    const index = logs.findIndex(l => l.id === lead.id);
-    if (index !== -1) logs[index] = lead;
-    else logs.unshift(lead);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
-    return;
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      const logs = getLocalLogs();
+      const index = logs.findIndex(l => l.id === lead.id);
+      if (index !== -1) logs[index] = lead;
+      else logs.unshift(lead);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+      return;
+    }
+    
+    const leadWithUid = { ...lead, uid: user.uid };
+    await setDoc(doc(db, 'leads', lead.id), leadWithUid);
+  } catch (error) {
+    console.error("Error saving lead:", error);
+    throw error;
   }
-  
-  const leadWithUid = { ...lead, uid: user.uid };
-  await setDoc(doc(db, 'leads', lead.id), leadWithUid);
 };
 
 export const deleteLead = async (id: string): Promise<void> => {
@@ -73,27 +83,37 @@ export const deleteLead = async (id: string): Promise<void> => {
 };
 
 export const getSessions = async (): Promise<SessionMetric[]> => {
-  const user = auth.currentUser;
-  if (!user) return getLocalSessions();
-  
-  const q = query(collection(db, 'sessions'), where('uid', '==', user.uid));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => doc.data() as SessionMetric);
+  try {
+    const user = auth.currentUser;
+    if (!user) return getLocalSessions();
+    
+    const q = query(collection(db, 'sessions'), where('uid', '==', user.uid));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => doc.data() as SessionMetric);
+  } catch (error) {
+    console.error("Error fetching sessions:", error);
+    return getLocalSessions();
+  }
 };
 
 export const saveSession = async (session: SessionMetric): Promise<void> => {
-  const user = auth.currentUser;
-  if (!user) {
-    const sessions = getLocalSessions();
-    const index = sessions.findIndex(s => s.id === session.id);
-    if (index !== -1) sessions[index] = session;
-    else sessions.unshift(session);
-    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessions));
-    return;
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      const sessions = getLocalSessions();
+      const index = sessions.findIndex(s => s.id === session.id);
+      if (index !== -1) sessions[index] = session;
+      else sessions.unshift(session);
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessions));
+      return;
+    }
+    
+    const sessionWithUid = { ...session, uid: user.uid };
+    await setDoc(doc(db, 'sessions', session.id), sessionWithUid);
+  } catch (error) {
+    console.error("Error saving session:", error);
+    throw error;
   }
-  
-  const sessionWithUid = { ...session, uid: user.uid };
-  await setDoc(doc(db, 'sessions', session.id), sessionWithUid);
 };
 
 // Legacy support for App.tsx (will be refactored)
