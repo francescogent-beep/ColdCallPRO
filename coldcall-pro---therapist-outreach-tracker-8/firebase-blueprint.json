@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "Lead": {
+      "title": "Lead",
+      "description": "A prospect for cold calling outreach",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessName": { "type": "string" },
+        "contactName": { "type": "string" },
+        "phone": { "type": "string" },
+        "profession": { "type": "string" },
+        "city": { "type": "string" },
+        "websiteStatus": { "type": "string" },
+        "mapsVisibility": { "type": "string" },
+        "attemptNumber": { "type": "number" },
+        "whoAnswered": { "type": "string" },
+        "outcome": { "type": "string" },
+        "interestLevel": { "type": "string" },
+        "nextAction": { "type": "string" },
+        "followUpDate": { "type": "string" },
+        "followUpTime": { "type": "string" },
+        "reminderNote": { "type": "string" },
+        "whatsAppSent": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "lastCallDate": { "type": "string" },
+        "leadStage": { "type": "string" },
+        "actionHistory": { "type": "array" },
+        "mapLink": { "type": "string" },
+        "websiteLink": { "type": "string" },
+        "uid": { "type": "string" }
+      },
+      "required": ["id", "businessName", "uid"]
+    },
+    "SessionMetric": {
+      "title": "SessionMetric",
+      "description": "Metrics for a specific calling session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "startTime": { "type": "number" },
+        "endTime": { "type": "number" },
+        "calls": { "type": "number" },
+        "rejections": { "type": "number" },
+        "uid": { "type": "string" }
+      },
+      "required": ["id", "startTime", "uid"]
+    }
+  },
+  "firestore": {
+    "/leads/{leadId}": {
+      "schema": "Lead",
+      "description": "Collection of leads"
+    },
+    "/sessions/{sessionId}": {
+      "schema": "SessionMetric",
+      "description": "Collection of session metrics"
+    }
+  }
+}

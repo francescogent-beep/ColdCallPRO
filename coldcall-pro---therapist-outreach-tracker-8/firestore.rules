@@ -1,0 +1,114 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: leads
+// Document ID: {leadId}
+// Fields:
+//   - id: string (required)
+//   - businessName: string (required)
+//   - contactName: string
+//   - phone: string
+//   - profession: string
+//   - city: string
+//   - websiteStatus: string
+//   - mapsVisibility: string
+//   - attemptNumber: number
+//   - whoAnswered: string
+//   - outcome: string
+//   - interestLevel: string
+//   - nextAction: string
+//   - followUpDate: string
+//   - followUpTime: string
+//   - reminderNote: string
+//   - whatsAppSent: string
+//   - notes: string
+//   - createdAt: string
+//   - lastCallDate: string
+//   - leadStage: string
+//   - actionHistory: list
+//   - mapLink: string
+//   - websiteLink: string
+//   - uid: string (required) - Owner of the lead
+//
+// Collection: sessions
+// Document ID: {sessionId}
+// Fields:
+//   - id: string (required)
+//   - startTime: number (required)
+//   - endTime: number
+//   - calls: number
+//   - rejections: number
+//   - uid: string (required) - Owner of the session
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+    
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) ||
+        request.resource.data.uid == request.auth.uid;
+    }
+    
+    function uidNotModified() {
+      return !('uid' in request.resource.data) ||
+        request.resource.data.uid == resource.data.uid;
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidLead(data) {
+      return data.id is string && data.id.size() > 0 &&
+             data.businessName is string && data.businessName.size() > 0 && data.businessName.size() < 200 &&
+             data.uid == request.auth.uid;
+    }
+
+    function isValidSession(data) {
+      return data.id is string && data.id.size() > 0 &&
+             data.startTime is number &&
+             data.uid == request.auth.uid;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /leads/{leadId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidLead(request.resource.data) && uidUnchanged();
+      allow update: if isDocOwner() && isValidLead(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner();
+    }
+
+    match /sessions/{sessionId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidSession(request.resource.data) && uidUnchanged();
+      allow update: if isDocOwner() && isValidSession(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner();
+    }
+  }
+}
