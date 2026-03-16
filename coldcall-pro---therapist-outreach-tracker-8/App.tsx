@@ -14,6 +14,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('master');
   const [entries, setEntries] = useState<CallLogEntry[]>([]);
   const [sessions, setSessions] = useState<SessionMetric[]>([]);
@@ -196,6 +197,19 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSignIn = async () => {
+    setAuthError(null);
+    try {
+      await signIn();
+    } catch (error: any) {
+      if (error.code === 'auth/unauthorized-domain') {
+        setAuthError('This domain is not authorized in Firebase. Please add the current URL to "Authorized Domains" in your Firebase Console.');
+      } else {
+        setAuthError(error.message || 'An error occurred during sign in.');
+      }
+    }
+  };
+
   if (!isAuthReady) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -214,8 +228,15 @@ const App: React.FC = () => {
         </div>
         <h1 className="text-3xl font-black text-white mb-2 tracking-tighter uppercase">ColdCall <span className="text-indigo-400">Pro</span></h1>
         <p className="text-slate-400 mb-8 max-w-xs">Your outreach data, synced across all your devices. Secure and reliable.</p>
+        
+        {authError && (
+          <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-xs font-bold leading-relaxed max-w-xs">
+            {authError}
+          </div>
+        )}
+
         <button 
-          onClick={signIn}
+          onClick={handleSignIn}
           className="w-full max-w-xs py-4 bg-white text-slate-900 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-slate-100 transition-all flex items-center justify-center gap-3"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
