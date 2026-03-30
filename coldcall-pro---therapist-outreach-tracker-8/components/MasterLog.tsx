@@ -12,9 +12,12 @@ interface MasterLogProps {
   onDelete: (id: string) => void;
   onBulkAdd: (entries: CallLogEntry[], overwrite?: boolean) => void;
   onUpdate: (entry: CallLogEntry) => void;
+  onCleanDuplicates: () => void;
+  onRemoveNoPhone: () => void;
 }
 
-const MasterLog: React.FC<MasterLogProps> = ({ entries, onAddRequest, onEditRequest, onDelete, onBulkAdd, onUpdate }) => {
+const MasterLog: React.FC<MasterLogProps> = ({ entries, onAddRequest, onEditRequest, onDelete, onBulkAdd, onUpdate, onCleanDuplicates, onRemoveNoPhone }) => {
+  console.log('MasterLog props:', { onCleanDuplicates, onRemoveNoPhone });
   const [searchTerm, setSearchTerm] = useState('');
   const [professionFilter, setProfessionFilter] = useState('All');
   const [outcomeFilter, setOutcomeFilter] = useState('All');
@@ -267,6 +270,28 @@ const MasterLog: React.FC<MasterLogProps> = ({ entries, onAddRequest, onEditRequ
                     <button onClick={() => jsonFileInputRef.current?.click()} className="p-2 border border-slate-100 rounded text-[9px] font-black uppercase">Import JSON</button>
                     <button onClick={handleExportCSV} className="p-2 border border-slate-100 rounded text-[9px] font-black uppercase">Export CSV</button>
                     <CSVImporter onImport={(d) => onBulkAdd(d)} />
+                    <button 
+                      onClick={() => {
+                        console.log('Clean Duplicates clicked');
+                        alert('Clean Duplicates clicked');
+                        onCleanDuplicates();
+                        setShowDataMenu(false);
+                      }} 
+                      className="col-span-2 p-2 bg-rose-50 text-rose-600 border border-rose-100 rounded text-[9px] font-black uppercase hover:bg-rose-100 transition-colors"
+                    >
+                      Clean Duplicates
+                    </button>
+                    <button 
+                      onClick={() => {
+                        console.log('Remove No Phone clicked');
+                        alert('Remove No Phone clicked');
+                        onRemoveNoPhone();
+                        setShowDataMenu(false);
+                      }} 
+                      className="col-span-2 p-2 bg-slate-50 text-slate-600 border border-slate-100 rounded text-[9px] font-black uppercase hover:bg-slate-100 transition-colors"
+                    >
+                      Remove No Phone
+                    </button>
                   </div>
                   <input type="file" ref={jsonFileInputRef} className="hidden" onChange={handleImportJSON} accept=".json" />
                 </div>
@@ -279,6 +304,8 @@ const MasterLog: React.FC<MasterLogProps> = ({ entries, onAddRequest, onEditRequ
             )}
           </div>
           <button onClick={onAddRequest} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-[10px] font-black uppercase tracking-widest">+ NEW</button>
+          <button onClick={() => { alert('Clean clicked'); onCleanDuplicates(); }} className="px-4 py-2 bg-rose-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Clean</button>
+          <button onClick={() => { alert('No Phone clicked'); onRemoveNoPhone(); }} className="px-4 py-2 bg-slate-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest">No Phone</button>
         </div>
       </div>
 
