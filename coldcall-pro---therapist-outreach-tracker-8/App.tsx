@@ -1,3 +1,30 @@
+import React, { useState, useEffect } from 'react';
+import Layout from './components/Layout';
+import MasterLog from './components/MasterLog';
+import FollowUpView from './components/FollowUpView';
+import DailyMetrics from './components/DailyMetrics';
+import LogForm from './components/LogForm';
+import ErrorBoundary from './components/ErrorBoundary';
+import { CallLogEntry, TabType, CallOutcome, SessionMetric } from './types';
+import { getLeads, saveLead, deleteLead, getSessions, saveSession, testConnection } from './services/storage';
+import { checkReminders } from './services/notifications';
+import { auth, signIn, logOut, handleRedirectResult } from './src/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+
+const App: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>('master');
+  const [entries, setEntries] = useState<CallLogEntry[]>([]);
+  const [sessions, setSessions] = useState<SessionMetric[]>([]);
+  const [activeCallId, setActiveCallId] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+  
+  // Session tracking state
+  const [currentSessionId] = useState<string>(Math.random().toString(36).substr(2, 9));
+  const [sessionStartTime] = useState<number>(Date.now());
+  const [sessionCalls, setSessionCalls] = useState<number>(0);
   const [sessionRejections, setSessionRejections] = useState<number>(0);
 
   // Auth listener
@@ -157,6 +184,117 @@
     }
     setEntries(updated);
   };
+  
+  const handleCleanDuplicates = async () => {
+    console.log('handleCleanDuplicates called');
+    try {
+      // if (!window.confirm('This will remove duplicate leads based on phone numbers and business names. The most complete lead (with phone and highest attempts) will be kept. Continue?')) return;
+      
+      const phoneMap = new Map<string, CallLogEntry>();
+    const nameMap = new Map<string, CallLogEntry[]>(); // Map name to list of entries to check city variations
+    const toDelete = new Set<string>();
+    
+    // Sort entries to prioritize:
+    // 1. Has phone number
+    // 2. Higher attempt number
+    // 3. Most recent call date
+    const sorted = [...entries].sort((a, b) => {
+      const aHasPhone = !!a.phone.replace(/\D/g, '');
+      const bHasPhone = !!b.phone.replace(/\D/g, '');
+      
+      if (aHasPhone && !bHasPhone) return -1;
+      if (!aHasPhone && bHasPhone) return 1;
+      
+      if ((b.attemptNumber || 0) !== (a.attemptNumber || 0)) {
+        return (b.attemptNumber || 0) - (a.attemptNumber || 0);
+      }
+      
+      return (b.lastCallDate || '').localeCompare(a.lastCallDate || '');
+    });
+    
+    sorted.forEach(entry => {
+      const cleanPhone = entry.phone.replace(/\D/g, '');
+      const cleanName = entry.businessName.toLowerCase().trim();
+      const currentCity = (entry.city || '').toLowerCase().trim();
+      
+      let isDuplicate = false;
+      
+      // 1. Check phone duplicate
+      if (cleanPhone && phoneMap.has(cleanPhone)) {
+        isDuplicate = true;
+      } 
+      
+      // 2. Check name duplicate with city logic
+      if (!isDuplicate) {
+        const existingEntries = nameMap.get(cleanName) || [];
+        for (const existing of existingEntries) {
+          const existingCity = (existing.city || '').toLowerCase().trim();
+          
+          // If one or both have no city, count as same city
+          if (!existingCity || !currentCity || existingCity === currentCity) {
+            isDuplicate = true;
+            break;
+          }
+        }
+      }
+      
+      if (isDuplicate) {
+        toDelete.add(entry.id);
+      } else {
+        if (cleanPhone) phoneMap.set(cleanPhone, entry);
+        
+        const list = nameMap.get(cleanName) || [];
+        list.push(entry);
+        nameMap.set(cleanName, list);
+      }
+    });
+    
+    if (toDelete.size === 0) {
+      alert('No duplicates found.');
+      return;
+    }
+    
+    const deleteList = Array.from(toDelete);
+    const remaining = entries.filter(e => !toDelete.has(e.id));
+    setEntries(remaining);
+    
+    // Delete from storage
+    for (const id of deleteList) {
+      await deleteLead(id);
+    }
+    
+    alert(`Cleaned ${toDelete.size} duplicate leads.`);
+    } catch (err: any) {
+      console.error('Error in handleCleanDuplicates:', err);
+      alert('Error: ' + err.message);
+    }
+  };
+
+  const handleRemoveNoPhone = async () => {
+    console.log('handleRemoveNoPhone called');
+    try {
+      const noPhoneLeads = entries.filter(e => !e.phone.replace(/\D/g, ''));
+      if (noPhoneLeads.length === 0) {
+        alert('No leads without phone numbers found.');
+        return;
+      }
+
+      // if (!window.confirm(`Found ${noPhoneLeads.length} leads without phone numbers. Are you sure you want to delete them?`)) return;
+
+      const toDeleteIds = noPhoneLeads.map(e => e.id);
+    const remaining = entries.filter(e => !toDeleteIds.includes(e.id));
+    setEntries(remaining);
+
+    for (const id of toDeleteIds) {
+      await deleteLead(id);
+    }
+
+    alert(`Removed ${toDeleteIds.length} leads without phone numbers.`);
+    } catch (err: any) {
+      console.error('Error in handleRemoveNoPhone:', err);
+      alert('Error: ' + err.message);
+    }
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -169,6 +307,8 @@
             onDelete={handleDelete}
             onBulkAdd={handleBulkAdd}
             onUpdate={handleUpdate}
+            onCleanDuplicates={handleCleanDuplicates}
+            onRemoveNoPhone={handleRemoveNoPhone}
           />
         );
       case 'followup':
